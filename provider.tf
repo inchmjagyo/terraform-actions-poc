@@ -2,13 +2,13 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=4.6.0"
+      version = "~>3.6"
     }
   }
 
   backend "azurerm" {
-      resource_group_name  = "az-ddc-weu-sa-npr-dxp-imports-core-001"
-      storage_account_name = "azddcweusanprtfstate"
+      resource_group_name  = "demo-core-1"
+      storage_account_name = "democore"
       container_name       = "tfstate"
       key                  = "terraform.tfstate"
   }
