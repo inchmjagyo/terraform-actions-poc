@@ -1,2 +1,2 @@
 environment = "sit"
-namespace = "sampleProjectName"
+namespace = "sampleprojectname"
