@@ -134,7 +134,7 @@ jobs:
     environment: production
     needs: [terraform-plan]
     env:
-      environment: needs.terraform-plan.outputs.environment_value
+      environment: ${{ needs.terraform-plan.outputs.environment_value }}
     
     steps:
     # Checkout the repository to the GitHub Actions runner
