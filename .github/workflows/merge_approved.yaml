@@ -21,6 +21,23 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Get PR Labels
+      id: get_labels
+      run: |
+        echo "labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')" >> $GITHUB_ENV
+
+    - name: Check for Environment Label
+      id: check_env
+      run: |
+        if echo "$labels" | grep -E 'environment:'; then
+          echo "environment_found=true" >> $GITHUB_ENV
+          # Extract the specific environment name
+          environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
+          echo "environment=$environment" >> $GITHUB_ENV
+        else
+          echo "environment_found=false" >> $GITHUB_ENV
+        fi
+
     # Install the latest version of the Terraform CLI
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -33,13 +50,15 @@ jobs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
-      run: terraform init
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform init
 
     - name: Terraform Plan
       id: tf-plan
       run: |
         export exitcode=0
-        ls -lah
+        cp ./${{ env.environment }}/* .
         terraform plan -detailed-exitcode -no-color -out tfplan || export exitcode=$?
         
         echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
@@ -123,7 +142,9 @@ jobs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
-      run: terraform init
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform init
 
     # Download saved plan from artifacts  
     - name: Download Terraform Plan
@@ -133,5 +154,7 @@ jobs:
 
     # Terraform Apply
     - name: Terraform Apply
-      run: terraform apply -auto-approve tfplan
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform apply -auto-approve tfplan
       # echo Running terraform apply
