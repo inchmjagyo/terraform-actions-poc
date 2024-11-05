@@ -25,8 +25,7 @@ jobs:
     - name: Get PR Labels
       id: get_labels
       run: |
-        echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name'
-        echo "labels=$(echo '${{ github.event.pull_request.labels }}' | jq -r '.[] | .name')" >> $GITHUB_ENV
+        echo "labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')" >> $GITHUB_ENV
 
     - name: Fetch PR diff
       run: git fetch origin pull/${{ github.event.pull_request.number }}/head
