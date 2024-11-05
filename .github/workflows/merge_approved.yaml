@@ -123,4 +123,8 @@ jobs:
       run: |
         cp ./${{ env.environment }}/* .
         terraform apply -auto-approve tfplan
+<<<<<<< HEAD
       # echo Running terraform apply
+=======
+      # echo Running terraform apply
+>>>>>>> a1f1a4d (updated approved pull request)
