@@ -1,0 +1,2 @@
+environment = "sit"
+namespace = "sampleProjectName"

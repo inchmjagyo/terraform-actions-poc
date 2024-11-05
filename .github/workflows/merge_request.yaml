@@ -3,6 +3,7 @@ run-name: ${{ github.event.workflow_run.head_commit.message }}
 
 on:
   pull_request:
+    types: [labeled]
     branches:
       - main
 
@@ -20,6 +21,31 @@ jobs:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Get PR Labels
+      id: get_labels
+      run: |
+        echo "labels=$(echo '${{ github.event.pull_request.labels }}' | jq -r '.[] | .name')" >> $GITHUB_ENV
+
+    - name: Fetch PR diff
+      run: git fetch origin pull/${{ github.event.pull_request.number }}/head
+
+    - name: Check for Environment Label
+      id: check_env
+      run: |
+        if echo "$labels" | grep -E 'environment:'; then
+          echo "environment_found=true" >> $GITHUB_ENV
+          # Extract the specific environment name
+          environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
+          echo "environment=$environment" >> $GITHUB_ENV
+        else
+          echo "environment_found=false" >> $GITHUB_ENV
+        fi
+
+    - name: Triggered by Environment Label
+      if: env.environment_found == 'true'
+      run: |
+        echo "Environment label detected: ${{ env.environment }}"
 
     # Install the latest version of the Terraform CLI
     - name: Setup Terraform
