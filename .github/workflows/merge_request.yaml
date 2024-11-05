@@ -61,13 +61,14 @@ jobs:
     - name: Terraform Init
       run: |
         az account set --subscription="${{ secrets.AZ_SUBSCRIPTION_ID }}"
+        cp ./${{ env.environment }}/* .
         terraform init
 
     - name: Terraform Plan
       run: |
         export exitcode=0
         az account set --subscription=${{ secrets.AZ_SUBSCRIPTION_ID }} 
-        ls -lah
+        cp ./${{ env.environment }}/* .
         terraform plan -detailed-exitcode -no-color -out tfplan || export exitcode=$?
         
         echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
