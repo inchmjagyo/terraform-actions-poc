@@ -10,6 +10,12 @@ jobs:
   terraform-plan:
     name: 'Terraform Plan'
     runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZ_TENANT_ID }}
+
     steps:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
@@ -23,13 +29,12 @@ jobs:
 
     - uses: azure/login@v2
       with:
-        client-id: ${{ secrets.AZ_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZ_TENANT_ID }}
-        subscription-id: ${{ secrets.AZ_SUBSCRIPTION_ID }}
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
       run: |
+        az account set --subscription="${{ secrets.AZ_SUBSCRIPTION_ID }}"
         terraform init
 
     - name: Terraform Plan
