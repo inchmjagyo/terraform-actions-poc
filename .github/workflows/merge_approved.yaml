@@ -11,6 +11,8 @@ jobs:
   terraform-plan:
     name: 'Terraform Plan'
     runs-on: ubuntu-latest
+    outputs:
+      environment_value: ${{ steps.check_env.outputs.environment }}
     env:
       ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
@@ -34,6 +36,7 @@ jobs:
           # Extract the specific environment name
           environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
           echo "environment=$environment" >> $GITHUB_ENV
+          echo "::set-output name=environment::${environment}"
         else
           echo "environment_found=false" >> $GITHUB_ENV
         fi
@@ -130,6 +133,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     needs: [terraform-plan]
+    env:
+      environment: needs.terraform-plan.outputs.environment_value
     
     steps:
     # Checkout the repository to the GitHub Actions runner
