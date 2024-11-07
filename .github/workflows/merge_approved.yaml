@@ -11,10 +11,35 @@ jobs:
   terraform-plan:
     name: 'Terraform Plan'
     runs-on: ubuntu-latest
+    outputs:
+      environment_value: ${{ steps.check_env.outputs.environment }}
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZ_TENANT_ID }}
     steps:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Get PR Labels
+      id: get_labels
+      run: |
+        echo "labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')" >> $GITHUB_ENV
+
+    - name: Check for Environment Label
+      id: check_env
+      run: |
+        if echo "$labels" | grep -E 'environment:'; then
+          echo "environment_found=true" >> $GITHUB_ENV
+          # Extract the specific environment name
+          environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
+          echo "environment=$environment" >> $GITHUB_ENV
+          echo "::set-output name=environment::${environment}"
+        else
+          echo "environment_found=false" >> $GITHUB_ENV
+        fi
 
     # Install the latest version of the Terraform CLI
     - name: Setup Terraform
@@ -28,13 +53,15 @@ jobs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
-      run: terraform init
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform init
 
     - name: Terraform Plan
       id: tf-plan
       run: |
         export exitcode=0
-        ls -lah
+        cp ./${{ env.environment }}/* .
         terraform plan -detailed-exitcode -no-color -out tfplan || export exitcode=$?
         
         echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
@@ -52,53 +79,6 @@ jobs:
       with:
         name: tfplan
         path: tfplan
-        
-    # Create string output of Terraform Plan
-    - name: Create String Output
-      id: tf-plan-string
-      run: |
-        TERRAFORM_PLAN=$(terraform show -no-color tfplan)
-        
-        delimiter="$(openssl rand -hex 8)"
-        echo "summary<<${delimiter}" >> $GITHUB_OUTPUT
-        echo "## Terraform Plan Output" >> $GITHUB_OUTPUT
-        echo "<details><summary>Click to expand</summary>" >> $GITHUB_OUTPUT
-        echo "" >> $GITHUB_OUTPUT
-        echo '```terraform' >> $GITHUB_OUTPUT
-        echo "$TERRAFORM_PLAN" >> $GITHUB_OUTPUT
-        echo '```' >> $GITHUB_OUTPUT
-        echo "</details>" >> $GITHUB_OUTPUT
-        echo "${delimiter}" >> $GITHUB_OUTPUT
-        
-    # Publish Terraform Plan as task summary
-    - name: Publish Terraform Plan to Task Summary
-      env:
-        SUMMARY: ${{ steps.tf-plan-string.outputs.summary }}
-      run: |
-        echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
-
-
-    # If changes are detected, create a new issue
-    - name: Publish Drift Report
-      uses: actions/github-script@v7
-      if: github.event.pull_request.merged == false
-      env:
-        SUMMARY: "${{ steps.tf-plan-string.outputs.summary }}"
-      with:
-          github-token: ${{ secrets.ARGOCD_GITHUB_PAT }}
-          script: |
-            const body = `${process.env.SUMMARY}`;
-            const title = 'Terraform Configuration Drift Detected';
-            const creator = 'github-actions[bot]'
-          
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              creator: creator,
-              body: body
-            })
 
   terraform-apply:
     name: 'Terraform Apply'
@@ -106,6 +86,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     needs: [terraform-plan]
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZ_TENANT_ID }}
+      environment: ${{ needs.terraform-plan.outputs.environment_value }}
     
     steps:
     # Checkout the repository to the GitHub Actions runner
@@ -116,9 +102,15 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
-      run: terraform init
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform init
 
     # Download saved plan from artifacts  
     - name: Download Terraform Plan
@@ -128,5 +120,7 @@ jobs:
 
     # Terraform Apply
     - name: Terraform Apply
-      run: terraform apply -auto-approve tfplan
+      run: |
+        cp ./${{ env.environment }}/* .
+        terraform apply -auto-approve tfplan
       # echo Running terraform apply
