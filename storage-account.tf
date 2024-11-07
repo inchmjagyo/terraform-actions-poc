@@ -17,4 +17,4 @@ resource "azurerm_storage_container" "test" {
   storage_account_name  = azurerm_storage_account.demo.name
   container_access_type = "private"
 }
-
+ 
