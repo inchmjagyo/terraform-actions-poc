@@ -8,127 +8,136 @@ on:
       - main
 
 jobs:
-  terraform-plan:
-    name: 'Terraform Plan'
-    runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZ_TENANT_ID }}
+  main:
+    if: ${{ contains(github.event.*.labels.*.name, 'environment') }}
+    uses: inchcape-global-devsecops/dso-ci-templates-iac/.github/workflows/azure-iac-main.yaml@rewrite-workflow
+    secrets: inherit
+    with:
+      deploy_stg: 'test'
+      deploy_prod: 'test'
 
-    steps:
-    # Checkout the repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v4
+  # terraform-plan:
+  #   name: 'Terraform Plan'
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     ARM_CLIENT_ID: ${{ secrets.AZ_CLIENT_ID }}
+  #     ARM_CLIENT_SECRET: ${{ secrets.AZ_CLIENT_SECRET }}
+  #     ARM_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
+  #     ARM_TENANT_ID: ${{ secrets.AZ_TENANT_ID }}
 
-    - name: Get PR Labels
-      id: get_labels
-      run: |
-        echo "labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')" >> $GITHUB_ENV
+  #   steps:
+  #   # Checkout the repository to the GitHub Actions runner
+  #   - name: Checkout
+  #     uses: actions/checkout@v4
 
-    - name: Fetch PR diff
-      run: git fetch origin pull/${{ github.event.pull_request.number }}/head
+  #   - name: Get PR Labels
+  #     id: get_labels
+  #     run: |
+  #       echo ${{ github.event.pull_request.labels.number.labels }}
+  #       echo "labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')" >> $GITHUB_ENV
 
-    - name: Check for Environment Label
-      id: check_env
-      run: |
-        if echo "$labels" | grep -E 'environment:'; then
-          echo "environment_found=true" >> $GITHUB_ENV
-          # Extract the specific environment name
-          environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
-          echo "environment=$environment" >> $GITHUB_ENV
-        else
-          echo "environment_found=false" >> $GITHUB_ENV
-        fi
+  #   - name: Fetch PR diff
+  #     run: git fetch origin pull/${{ github.event.pull_request.number }}/head
 
-    - name: Triggered by Environment Label
-      if: env.environment_found == 'true'
-      run: |
-        echo "Environment label detected: ${{ env.environment }}"
+  #   - name: Check for Environment Label
+  #     id: check_env
+  #     run: |
+  #       if echo "$labels" | grep -E 'environment:'; then
+  #         echo "environment_found=true" >> $GITHUB_ENV
+  #         # Extract the specific environment name
+  #         environment=$(echo "$labels" | grep -oP 'environment:\s*\K.*')
+  #         echo "environment=$environment" >> $GITHUB_ENV
+  #       else
+  #         echo "environment_found=false" >> $GITHUB_ENV
+  #       fi
 
-    # Install the latest version of the Terraform CLI
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_wrapper: false
+  #   - name: Triggered by Environment Label
+  #     if: env.environment_found == 'true'
+  #     run: |
+  #       echo "Environment label detected: ${{ env.environment }}"
 
-    - uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+  #   # Install the latest version of the Terraform CLI
+  #   - name: Setup Terraform
+  #     uses: hashicorp/setup-terraform@v3
+  #     with:
+  #       terraform_wrapper: false
 
-    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
-    - name: Terraform Init
-      run: |
-        az account set --subscription="${{ secrets.AZ_SUBSCRIPTION_ID }}"
-        cp ./${{ env.environment }}/* .
-        terraform init
+  #   - uses: azure/login@v2
+  #     with:
+  #       creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Plan
-      run: |
-        export exitcode=0
-        az account set --subscription=${{ secrets.AZ_SUBSCRIPTION_ID }} 
-        cp ./${{ env.environment }}/* .
-        terraform plan -detailed-exitcode -no-color -out tfplan || export exitcode=$?
+  #   # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+  #   - name: Terraform Init
+  #     run: |
+  #       az account set --subscription="${{ secrets.AZ_SUBSCRIPTION_ID }}"
+  #       cp ./${{ env.environment }}/* .
+  #       terraform init
+
+  #   - name: Terraform Plan
+  #     run: |
+  #       export exitcode=0
+  #       az account set --subscription=${{ secrets.AZ_SUBSCRIPTION_ID }} 
+  #       cp ./${{ env.environment }}/* .
+  #       terraform plan -detailed-exitcode -no-color -out tfplan || export exitcode=$?
         
-        echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
+  #       echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
         
-        if [ $exitcode -eq 1 ]; then
-          echo Terraform Plan Failed!
-          exit 1
-        else 
-          exit 0
-        fi
+  #       if [ $exitcode -eq 1 ]; then
+  #         echo Terraform Plan Failed!
+  #         exit 1
+  #       else 
+  #         exit 0
+  #       fi
 
-    # Save plan to artifacts  
-    - name: Publish Terraform Plan
-      uses: actions/upload-artifact@v4
-      with:
-        name: tfplan
-        path: tfplan
+  #   # Save plan to artifacts  
+  #   - name: Publish Terraform Plan
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: tfplan
+  #       path: tfplan
         
-    # Create string output of Terraform Plan
-    - name: Create String Output
-      id: tf-plan-string
-      run: |
-        TERRAFORM_PLAN=$(terraform show -no-color tfplan)
+  #   # Create string output of Terraform Plan
+  #   - name: Create String Output
+  #     id: tf-plan-string
+  #     run: |
+  #       TERRAFORM_PLAN=$(terraform show -no-color tfplan)
         
-        delimiter="$(openssl rand -hex 8)"
-        echo "summary<<${delimiter}" >> $GITHUB_OUTPUT
-        echo "## Terraform Plan Output" >> $GITHUB_OUTPUT
-        echo "<details><summary>Click to expand</summary>" >> $GITHUB_OUTPUT
-        echo "" >> $GITHUB_OUTPUT
-        echo '```terraform' >> $GITHUB_OUTPUT
-        echo "$TERRAFORM_PLAN" >> $GITHUB_OUTPUT
-        echo '```' >> $GITHUB_OUTPUT
-        echo "</details>" >> $GITHUB_OUTPUT
-        echo "${delimiter}" >> $GITHUB_OUTPUT
+  #       delimiter="$(openssl rand -hex 8)"
+  #       echo "summary<<${delimiter}" >> $GITHUB_OUTPUT
+  #       echo "## Terraform Plan Output" >> $GITHUB_OUTPUT
+  #       echo "<details><summary>Click to expand</summary>" >> $GITHUB_OUTPUT
+  #       echo "" >> $GITHUB_OUTPUT
+  #       echo '```terraform' >> $GITHUB_OUTPUT
+  #       echo "$TERRAFORM_PLAN" >> $GITHUB_OUTPUT
+  #       echo '```' >> $GITHUB_OUTPUT
+  #       echo "</details>" >> $GITHUB_OUTPUT
+  #       echo "${delimiter}" >> $GITHUB_OUTPUT
         
-    # Publish Terraform Plan as task summary
-    - name: Publish Terraform Plan to Task Summary
-      env:
-        SUMMARY: ${{ steps.tf-plan-string.outputs.summary }}
-      run: |
-        echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+  #   # Publish Terraform Plan as task summary
+  #   - name: Publish Terraform Plan to Task Summary
+  #     env:
+  #       SUMMARY: ${{ steps.tf-plan-string.outputs.summary }}
+  #     run: |
+  #       echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
 
-    # If changes are detected, create a new issue
-    - name: Publish Drift Report
-      uses: actions/github-script@v7
-      env:
-        SUMMARY: "${{ steps.tf-plan-string.outputs.summary }}"
-      with:
-          github-token: ${{ secrets.ARGOCD_GITHUB_PAT }}
-          script: |
-            const body = `${process.env.SUMMARY}`;
-            const title = 'Terraform Configuration Drift Detected';
-            const creator = 'github-actions[bot]'
+  #   # If changes are detected, create a new issue
+  #   - name: Publish Drift Report
+  #     uses: actions/github-script@v7
+  #     env:
+  #       SUMMARY: "${{ steps.tf-plan-string.outputs.summary }}"
+  #     with:
+  #         github-token: ${{ secrets.ARGOCD_GITHUB_PAT }}
+  #         script: |
+  #           const body = `${process.env.SUMMARY}`;
+  #           const title = 'Terraform Configuration Drift Detected';
+  #           const creator = 'github-actions[bot]'
           
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              creator: creator,
-              body: body
-            })
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             title: title,
+  #             creator: creator,
+  #             body: body
+  #           })
